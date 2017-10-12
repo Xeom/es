@@ -1,14 +1,7 @@
-typedef struct vec_s vec;
+#include <string.h>
 
-struct vec_s
-{
-    /* The stored data, can be NULL */
-    char *data;
-    /* Capacity usage and width in bytes */
-    size_t capacity;
-    size_t usage;
-    size_t width;
-};
+#include "vec.h"
+
 
 /* Call after operations that might shorten a vec */
 static void vec_resize_shorter(vec *v)
@@ -95,22 +88,29 @@ size_t vec_len(vec *v)
     return vec->usage / vec->width;
 }
 
+/* Insert data into a vector */
 int vec_ins(vec *v, size_t ind, size_t n, const char *data)
 {
+    /* The bytes after the point of insertion, the offset into the data  *
+     * of the point of insertion, and the number of bytes being inserted */
     size_t bytesafter, offset, bytesins;
 
     offset     = ind * v->width;
     bytesins   = n * v->width;
     bytesafter = v->usage - offset;
 
+    /* Don't accept inserts beyond the end of the data */
     if (offset > v->usage) return -1;
 
+    /* Increment and resize before putting in the data */
     v->usage  += bytesins;
     vec_resize_longer(v);
 
+    /* Shift the bytes after the point of insertion forward */
     if (bytesafter)
         memmove(v->data + offset + bytesins, v->data + offset, bytesafter);
 
+    /* Fill the gap, either with data or to zero */
     if (data)
         memmove(v->data + offset, data, bytesins);
     else memset(v->data + offset, 0,    bytesins);
