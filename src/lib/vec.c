@@ -24,6 +24,8 @@ static void vec_resize_longer(vec *v)
     /* Escape if no changes need making */
     if (v->usage <= v->capacity) return;
 
+    if (v->capacity == 0) v->capacity = 1;
+
     /* Increase the capacity until the data fits */
     do
     {
@@ -85,11 +87,11 @@ size_t vec_bst(
 /* Get the number of items in a vector */
 size_t vec_len(vec *v)
 {
-    return vec->usage / vec->width;
+    return v->usage / v->width;
 }
 
 /* Insert data into a vector */
-int vec_ins(vec *v, size_t ind, size_t n, const char *data)
+int vec_ins(vec *v, size_t ind, size_t n, const void *data)
 {
     /* The bytes after the point of insertion, the offset into the data  *
      * of the point of insertion, and the number of bytes being inserted */
@@ -118,9 +120,9 @@ int vec_ins(vec *v, size_t ind, size_t n, const char *data)
     return 0;
 }
 
-void vec_del(vec *v, size_t ind, size_t n)
+int vec_del(vec *v, size_t ind, size_t n)
 {
-    size_t bytesafter, offset;
+    size_t bytesafter, bytesdead, offset;
 
     offset     = ind * v->width;
     bytesdead  = n * v->width;
@@ -133,15 +135,17 @@ void vec_del(vec *v, size_t ind, size_t n)
 
     v->usage -= n;
     vec_resize_shorter(v);
+
+    return 0;
 }
 
-char *vec_get(vec *v, size_t ind)
+void *vec_get(vec *v, size_t ind)
 {
     size_t offset;
 
     offset = ind * v->width;
 
-    if (offset >= v->width) return NULL;
+    if (offset >= v->usage) return NULL;
 
     return v->data + offset;
 }
