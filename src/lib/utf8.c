@@ -1,30 +1,51 @@
 #include <stdio.h>
 #include "utf8.h"
 
-uint32_t utf8_read_char(unsigned char **utf8)
+uint32_t utf8_get_char(unsigned char utf8)
 {
-    size_t width;
-    uint32_t chr;
+    static uint32_t rtn;
+    static size_t   width;
+    size_t leading;
 
-    if ((**utf8 & 0x80) == 0) return *((*utf8)++);
-
-    for (width = 1; **utf8 & (0x80 >> width); width++);
-
-    chr = **utf8 & (0x7fu >> width);
-
-    while (--width)
+    if ((utf8 & 0x80) == 0)
     {
-        (*utf8)++;
+        width = 0;
+        rtn   = 0;
 
-        if (**utf8 == '\0') return 0;
-
-        chr <<= 6;
-        chr  |= **utf8 & 0x3fu;
+        return utf8;
     }
 
-    (*utf8)++;
+    for (leading = 1; utf8 & (0x80u >> leading); leading++);
 
-    return chr;
+    if (leading == 1 && width)
+    {
+        rtn <<= 6;
+        rtn  |= utf8 & 0x3fu;
+
+        width -= 1;
+
+        if (width == 0) return rtn;
+    }
+    else
+    {
+        rtn = utf8 & 0x7fu >> leading;
+        width = leading - 1;
+    }
+
+    return 0;
+}
+
+uint32_t utf8_read_char(unsigned char **utf8)
+{
+    for (; **utf8; (*utf8)++)
+    {
+        uint32_t chr;
+        chr = utf8_get_char(**utf8);
+
+        if (chr != 0) return chr;
+    }
+
+    return 0;
 }
 
 int utf8_write_char(uint32_t chr, unsigned char *data)
@@ -103,3 +124,5 @@ int utf8_to_utf32(unsigned char *utf8, vec *utf32, size_t n)
 
     return 0;
 }
+
+
