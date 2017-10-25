@@ -1,6 +1,8 @@
 #include <stdint.h>
 #include <string.h>
+#include <stdlib.h>
 #include <stdio.h>
+#include <unistd.h>
 
 #include "text.h"
 #include "utf8.h"
@@ -23,6 +25,21 @@ void line_set_chars(line *l, const char *chars, size_t n)
 void text_init(text *t)
 {
     vec_init(&(t->lines), sizeof(line));
+}
+
+void text_kill(text *t)
+{
+    size_t ind;
+
+    for (ind = 0; ind < vec_len(&(t->lines)); ind++)
+        vec_kill(vec_get(&(t->lines), ind));
+
+    vec_kill(&(t->lines));
+}
+
+void text_clr(text *t)
+{
+    vec_del(&(t->lines), 0, vec_len(&(t->lines)));
 }
 
 line *text_get_line(text *t, size_t ln)
@@ -90,9 +107,14 @@ static int text_cmd_decode_linecont(text_cmd *cmd, char *encoded)
 int text_cmd_decode(text_cmd *cmd, char *encoded)
 {
     char cmdtype;
-    if (sscanf(encoded, "%c%lu", &cmdtype, &(cmd->lineno)) != 2) return -1;
+
+    cmdtype = *encoded;
 
     cmd->type = (int)cmdtype;
+
+    if (cmd->type == cmd_clr) return 0;
+
+    if (sscanf(encoded, "%c%lu", &cmdtype, &(cmd->lineno)) != 2) return -1;
 
     switch (cmd->type)
     {
@@ -108,6 +130,19 @@ int text_cmd_decode(text_cmd *cmd, char *encoded)
     }
 
     return 0;
+}
+
+void text_cmd_kill(text_cmd *cmd)
+{
+    switch (cmd->type)
+    {
+    case cmd_ins:
+    case cmd_set:
+        vec_kill(&(cmd->data.linecont));
+        break;
+    }
+
+    cmd->type = 0;
 }
 
 int text_cmd_encode(text_cmd *cmd, vec *v)
@@ -133,4 +168,3 @@ int text_cmd_encode(text_cmd *cmd, vec *v)
 
     return 0;
 }
-
