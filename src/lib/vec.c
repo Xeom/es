@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <string.h>
 
 #include "vec.h"
@@ -44,14 +45,24 @@ void vec_init(vec *v, size_t width)
     v->data     = NULL;
 }
 
+/* Kill a vector */
+void vec_kill(vec *v)
+{
+    if (v->data) free(v->data);
+    v->data     = NULL;
+    v->usage    = 0;
+    v->capacity = 0;
+}
+
 /* BISECTION */
 size_t vec_bst(
     vec *v,
-    const char *item,
-    int (*cmpfunc)(const char *a, const char *b)
+    const void *item,
+    int (*cmpfunc)(const void *a, const void *b)
 )
 {
     size_t ltind, gtind;
+    int cmp;
 
     /* An empty vector returns 0 always */
     if (v->usage == 0) return 0;
@@ -71,7 +82,6 @@ size_t vec_bst(
     while (ltind + 1 < gtind)
     {
         size_t midind;
-        int cmp;
 
         midind = (gtind + ltind) / 2;
         cmp = cmpfunc(vec_get(v, midind), item);
@@ -81,7 +91,10 @@ size_t vec_bst(
         if (cmp == 0) return  midind;
     }
 
-    return gtind;
+    cmp = cmpfunc(vec_get(v, ltind), item);
+
+    if (cmp == 0) return ltind;
+    else          return gtind;
 }
 
 /* Get the number of items in a vector */
@@ -125,7 +138,7 @@ int vec_del(vec *v, size_t ind, size_t n)
     size_t bytesafter, bytesdead, offset;
 
     offset     = ind * v->width;
-    bytesdead  = n * v->width;
+    bytesdead  = n   * v->width;
     bytesafter = v->usage - offset - bytesdead;
 
     if (offset + bytesdead > v->usage) return -1;
@@ -133,7 +146,7 @@ int vec_del(vec *v, size_t ind, size_t n)
     if (bytesafter)
         memmove(v->data + offset, v->data + offset + bytesdead, bytesafter);
 
-    v->usage -= n;
+    v->usage -= bytesdead;
     vec_resize_shorter(v);
 
     return 0;

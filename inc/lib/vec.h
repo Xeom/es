@@ -17,10 +17,12 @@ struct vec_s
 
 void vec_init(vec *v, size_t width);
 
+void vec_kill(vec *v);
+
 size_t vec_bst(
     vec *v,
-    const char *item,
-    int (*cmpfunc)(const char *a, const char *b)
+    const void *item,
+    int (*cmpfunc)(const void *a, const void *b)
 );
 
 size_t vec_len(vec *v);
