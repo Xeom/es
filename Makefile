@@ -1,9 +1,11 @@
-LIBFILES=lib/utf8 lib/vec lib/text lib/ansi lib/com
-BINFILES=display
+LIBFILES=lib/utf8 lib/vec lib/text lib/com
+BINFILES=display read input
 
 LIBCFILES=$(addprefix src/, $(addsuffix .c, $(LIBFILES)))
 LIBHFILES=$(addprefix inc/, $(addsuffix .h, $(LIBFILES)))
 LIBOFILES=$(addprefix obj/, $(addsuffix .o, $(LIBFILES)))
+
+PROGRAMS=$(addprefix bin/esee, $(BINFILES))
 
 FLAGS=-Wall -Wno-unused-parameter -Wextra -Wformat \
       -Wfatal-errors -Wpedantic -Werror -Wconversion \
@@ -23,6 +25,16 @@ lib/libesee.a: $(LIBOFILES)
 	mkdir -p $(@D)
 	ar rcs $@ $^
 
-bin/%: src/%.c lib/libesee.a
+bin/esee%: src/%.c lib/libesee.a
 	mkdir -p $(@D)
-	$(CC) $(FLAGS) -static -g --std=c99 $< -lesee -o $@
+	$(CC) $(FLAGS) -g -static --std=c99 $< -lesee -o $@
+
+uninstall:
+	rm -f $(addprefix /usr/, $(PROGRAMS))
+
+install: uninstall all
+	ln -s $(realpath $(PROGRAMS)) /usr/bin
+
+all: $(PROGRAMS)
+
+.PHONY=uninstall install all

@@ -4,12 +4,11 @@
 #include <string.h>
 
 #include "utf8.h"
-#include "ansi.h"
 #include "text.h"
 #include "com.h"
 
-int cols;
-int rows;
+int cols = 10;
+int rows = 10;
 
 int cur_col = 0;
 int cur_row = 1;
@@ -20,38 +19,45 @@ text buffer;
 
 struct sigaction sigint_default;
 
-void  winch_handler(int sign);
-void sigint_handler(int sign);
+static void ansi_goto(int x, int y);
+static void ansi_clear(void);
+static void ansi_clear_line(void);
+static void sigint_handler(int sign);
+static void draw_all(void);
+static void draw_after(size_t ln);
+static void draw_line(size_t ln);
+static void handle_cmd(char *str, size_t n);
+static void handle_dir(char *str, size_t n);
+static void cleanup(void);
 
-
-void scroll_lines(int n);
-void draw_all(void);
-void draw_after(size_t ln);
-void draw_line(size_t ln);
-void handle_cmd(char *str, size_t n);
-void handle_dir(char *str, size_t n);
-void cleanup(void);
-
-void winch_handler(int sign)
+static void ansi_goto(int x, int y)
 {
-    cols = ansi_cols();
-    rows = ansi_rows();
-    draw_all();
+    printf("\033[%d;%df", y + 1, x + 1);
 }
 
-void sigint_handler(int sign)
+static void ansi_clear(void)
+{
+    printf("\033[2J");
+}
+
+static void ansi_clear_line(void)
+{
+    printf("\033[K");
+}
+
+static void sigint_handler(int sign)
 {
     cleanup();
     sigaction(sign, &sigint_default, NULL);
     kill(0, sign);
 }
 
-void draw_all(void)
+static void draw_all(void)
 {
     draw_after(scroll + 1);
 }
 
-void draw_after(size_t ln)
+static void draw_after(size_t ln)
 {
     size_t maxln, currln;
 
@@ -66,7 +72,7 @@ void draw_after(size_t ln)
         draw_line(currln);
 }
 
-void draw_line(size_t ln)
+static void draw_line(size_t ln)
 {
     vec    utf8, *chars;
     size_t len;
@@ -96,7 +102,7 @@ void draw_line(size_t ln)
     fwrite(vec_get(&utf8, 0), 1, vec_len(&utf8), stdout);
 }
 
-void handle_cmd(char *str, size_t n)
+static void handle_cmd(char *str, size_t n)
 {
     size_t ln;
     vec *chrs;
@@ -151,7 +157,7 @@ void handle_cmd(char *str, size_t n)
     text_cmd_kill(&cmd);
 }
 
-void handle_dir(char *str, size_t n)
+static void handle_dir(char *str, size_t n)
 {
     if (strncmp("RESIZE", str, strlen("RESIZE")) == 0)
     {
@@ -170,10 +176,11 @@ void handle_dir(char *str, size_t n)
     }
 }
 
-void cleanup(void)
+static void cleanup(void)
 {
     text_kill(&buffer);
     com_kill();
+    ansi_clear();
 }
 
 int main(void)
@@ -185,15 +192,13 @@ int main(void)
     atexit(cleanup);
 
     text_init(&buffer);
-    winch_handler(SIGWINCH);
 
-    act.sa_handler = winch_handler;
+    draw_all();
+
     sigemptyset(&act.sa_mask);
     act.sa_flags = 0;
-
-    sigaction(SIGWINCH, &act, NULL);
-
     act.sa_handler = sigint_handler;
+
     sigaction(SIGINT, &act, &sigint_default);
 
     com_init();
