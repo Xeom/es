@@ -1,4 +1,4 @@
-LIBFILES=lib/utf8 lib/vec lib/text
+LIBFILES=lib/utf8 lib/vec lib/text lib/ansi lib/com
 BINFILES=display
 
 LIBCFILES=$(addprefix src/, $(addsuffix .c, $(LIBFILES)))
@@ -10,9 +10,6 @@ FLAGS=-Wall -Wno-unused-parameter -Wextra -Wformat \
       -Wmissing-prototypes -Wdeclaration-after-statement \
       -Wno-switch -Wno-unused-label \
       -Iinc -Iinc/lib -Llib/
-
-obj/%.o: src/%.c $(LIBHFILES)
-	psdasd
 
 obj/%.o: src/%.c $(LIBHFILES)
 	mkdir -p $(@D)
