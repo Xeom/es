@@ -6,6 +6,7 @@
 # undef  _POSIX_SOURCE
 #endif
 
+#include <errno.h>
 #include <sys/select.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -16,8 +17,8 @@
 
 #include "com.h"
 
-char *com_tmpdir = "/tmp/esee";
-char  com_prodir[64];
+char *com_tmpdir = "/tmp/es";
+char  com_prodir[128];
 
 /* Vectors of all inp_conf and out_confs */
 vec com_inp;
@@ -67,16 +68,9 @@ void com_kill(void)
     for (ind = 0; ind < vec_len(&com_inp); ind++)
     {
         inp_conf *conf;
-        char fname[128];
 
         conf = vec_get(&com_inp, ind);
-
-        /* Get the filename of the input */
-        sprintf(fname, "%s/%s", com_prodir, conf->name);
-
-        /* Close & remove the file */
-        close(conf->fd);
-        unlink(fname);
+        com_kill_input(conf->name);
     }
 
     /* For each output */
@@ -89,7 +83,8 @@ void com_kill(void)
         close(conf->fd);
     }
 
-    rmdir(com_prodir);
+    if (rmdir(com_prodir) != 0)
+        fprintf(stderr, "Couldn't rm dir %s - errno %d\n", com_prodir, errno);
 
     /* Delete the input and output vectors */
     vec_kill(&com_inp);
@@ -112,16 +107,25 @@ void com_add_input(inp_conf *conf)
 {
     size_t ind;
     char   fname[128];
+    char  *name;
+
+    name = malloc(strlen(conf->name) + 1);
+    strcpy(name, conf->name);
+    conf->name = name;
 
     if (conf->fd == -1)
     {
         snprintf(fname, 128, "%s/%s", com_prodir, conf->name);
-        mkfifo(fname, 0700);
+        if (mkfifo(fname, 0700) != 0)
+            fprintf(stderr, "Couldn't make FIFO %s: errno %d\n", fname, errno);
 
         conf->fd = open(fname, O_RDWR | O_NONBLOCK);
+
+        if (conf->fd == -1)
+            fprintf(stderr, "Couldn't open FIFO %s: errno %d\n", fname, errno);
     }
 
-    ind = vec_bst(&com_inp, conf, com_cmp_inp_conf);
+    ind = vec_bst(&com_inp, conf->name, com_cmp_inp_conf);
     vec_ins(&com_inp, ind, 1, conf);
 }
 
@@ -135,11 +139,12 @@ void com_kill_input(char *name)
     conf = vec_get(&com_inp, ind);
     close(conf->fd);
 
-    snprintf(fname, 128, "%s/%s", com_prodir, conf->name);
-    unlink(fname);
     vec_del(&com_inp, ind, 1);
 
-    unlink(fname);
+    if (unlink(fname) != 0)
+        fprintf(stderr, "Couldn't unlink %s: errno %d\n", fname, errno);
+
+    free(conf->name);
 }
 
 /* Add a new output channel */
@@ -228,7 +233,7 @@ void com_send(char *name, char *str)
 
     if (strcmp(name, conf->name) != 0)
     {
-        fprintf(stderr, "Output channel '%s' doesn't exist", name);
+        fprintf(stderr, "Output channel '%s' doesn't exist\n", name);
         return;
     }
 
