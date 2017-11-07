@@ -1,11 +1,11 @@
-LIBFILES=lib/utf8 lib/vec lib/text lib/com
-BINFILES=display read input
+LIBFILES=lib/utf8 lib/vec lib/text lib/com lib/cmd lib/clean
+BINFILES=display read input tabs scroll display2
 
 LIBCFILES=$(addprefix src/, $(addsuffix .c, $(LIBFILES)))
 LIBHFILES=$(addprefix inc/, $(addsuffix .h, $(LIBFILES)))
 LIBOFILES=$(addprefix obj/, $(addsuffix .o, $(LIBFILES)))
 
-PROGRAMS=$(addprefix bin/esee, $(BINFILES))
+PROGRAMS=$(addprefix bin/es, $(BINFILES))
 
 RESET="\e[0m"
 DGRN="\e[38;2;90;220;20m"
@@ -32,17 +32,17 @@ obj/%.o: src/%.c $(LIBHFILES)
 	@mkdir -p $(@D)
 	@$(CC) $(FLAGS) -c -g -fPIC --std=c99 $< -o $@
 
-lib/libesee.so: $(LIBOFILES)
+lib/libes.so: $(LIBOFILES)
 	@echo $(DYEL)[$(LYEL)\> \<$(DYEL)]$(BYEL) Assembling $@ ...$(RESET)
 	@mkdir -p $(@D)
 	@$(CC) $(FLAGS) -g -shared $^ -o $@
 
-lib/libesee.a: $(LIBOFILES)
+lib/libes.a: $(LIBOFILES)
 	@echo $(DYEL)[$(LYEL)\> \<$(DYEL)]$(BYEL) Assembling $@ ...$(RESET)
 	@mkdir -p $(@D)
 	@ar rcs $@ $^
 
-bin/esee%: src/%.c lib/libesee.a
+bin/es%: src/%.c lib/libesee.a
 	@echo $(DORN)[$(LORN)\>*\<$(DORN)]$(BORN) Compiling $@ ...$(RESET)
 	@mkdir -p $(@D)
 	@$(CC) $(FLAGS) -g -static --std=c99 $< -lesee -o $@
