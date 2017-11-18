@@ -33,7 +33,7 @@ static void vec_resize_longer(vec *v)
         v->capacity <<= 1;
     } while (v->usage > v->capacity);
 
-    v->data  = realloc(v->data, v->capacity);
+    v->data = realloc(v->data, v->capacity);
 }
 
 /* Initialises a vector */
@@ -63,7 +63,7 @@ size_t vec_bst(
 {
     size_t ltind, gtind;
     int cmp;
-
+    puts((char *)item);
     /* An empty vector returns 0 always */
     if (v->usage == 0) return 0;
 

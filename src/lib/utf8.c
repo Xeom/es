@@ -37,10 +37,12 @@ uint32_t utf8_get_char(unsigned char utf8)
 
 uint32_t utf8_read_char(unsigned char **utf8)
 {
-    for (; **utf8; (*utf8)++)
+    while(**utf8)
     {
         uint32_t chr;
+
         chr = utf8_get_char(**utf8);
+        (*utf8)++;
 
         if (chr != 0) return chr;
     }

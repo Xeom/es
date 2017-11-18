@@ -87,7 +87,8 @@ void winch_handler(int sign)
     /* Get and print the new stdin size. We use stdin not stdout since *
      * this program faces the user only on stdin.                      */
     ioctl(STDIN_FILENO, TIOCGWINSZ, &w);
-    printf("RESIZE %d %d\n", w.ws_row, w.ws_col);
+    printf("RESIZE %d %d\n", w.ws_col, w.ws_row);
+    fflush(stdout);
 }
 
 void sigint_handler(int sign)
@@ -154,7 +155,9 @@ void key_print(uint32_t k)
                 printf("KEY K_%x\n", (int)kchr);
             }
 
+            fflush(stdout);
             escaped = 0;
+
             return;
         }
 
@@ -162,10 +165,16 @@ void key_print(uint32_t k)
         {
             printf("KEY K_%s\n", match->name);
             vec_del(&esccombo, 0, vec_len(&esccombo) - 1);
+
+            fflush(stdout);
             escaped = 0;
         }
     }
-    else printf("KEY K_%x\n", k);
+    else
+    {
+        printf("KEY K_%x\n", k);
+        fflush(stdout);
+    }
 }
 
 void cleanup(void)
@@ -219,7 +228,7 @@ int main(void)
     sigaction(SIGINT, &act, &sigint_default);
 
     while (1)
-        key_handler(getchar());
+         key_handler(getchar());
 
     return 0;
 }

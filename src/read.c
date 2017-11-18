@@ -8,16 +8,13 @@
 #include "vec.h"
 #include "text.h"
 #include "com.h"
-
-struct sigaction sigint_default;
+#include "clean.h"
 
 void handle_dir(char *str, size_t n);
 
 void read_file(int fd);
 
 void cleanup(void);
-
-void sigint_handler(int sign);
 
 void handle_dir(char *str, size_t n)
 {
@@ -32,6 +29,7 @@ void handle_dir(char *str, size_t n)
         if (fd == -1) fprintf(stderr, "Could not open file %s\n", fname);
         else read_file(fd);
     }
+
 }
 
 void read_file(int fd)
@@ -52,6 +50,7 @@ void read_file(int fd)
         if (chr == '\n')
         {
             size_t len;
+
             len = vec_len(&buf);
             write(STDOUT_FILENO, vec_get(&buf, 0), len);
             vec_del(&buf, 0, len);
@@ -62,6 +61,8 @@ void read_file(int fd)
             vec_del(&buf, len, 32 - len);
         }
     }
+
+    fsync(STDOUT_FILENO);
 }
 
 void cleanup(void)
@@ -69,33 +70,17 @@ void cleanup(void)
     com_kill();
 }
 
-void sigint_handler(int sign)
-{
-    cleanup();
-    sigaction(sign, &sigint_default, NULL);
-    kill(0, sign);
-}
-
 int main(void)
 {
-    struct sigaction act;
     inp_conf dir_input = {"dir", -1, NULL, handle_dir};
 
-    atexit(cleanup);
-
-    act.sa_handler = sigint_handler;
-    sigemptyset(&act.sa_mask);
-    act.sa_flags = 0;
-
-    sigaction(SIGINT, &act, &sigint_default);
+    on_clean(cleanup);
 
     com_init();
-
     com_add_input(&dir_input);
 
     while (1)
     {
-        fflush(stdout);
         com_wait();
     }
 

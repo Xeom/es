@@ -3,9 +3,11 @@
 #include <unistd.h>
 #include <string.h>
 
+#include "clean.h"
 #include "utf8.h"
 #include "text.h"
 #include "com.h"
+#include "cmd.h"
 
 int cols = 10;
 int rows = 10;
@@ -13,19 +15,18 @@ int rows = 10;
 int cur_col = 0;
 int cur_row = 1;
 
-size_t scroll = 0;
+size_t scroll_cols = 0;
+size_t scroll_rows = 0;
 
 text buffer;
-
-struct sigaction sigint_default;
 
 static void ansi_goto(int x, int y);
 static void ansi_clear(void);
 static void ansi_clear_line(void);
-static void sigint_handler(int sign);
-static void draw_all(void);
-static void draw_after(size_t ln);
-static void draw_line(size_t ln);
+static void update_all(void);
+static void update_after(size_t ln);
+static void update_line(size_t ln);
+static void draw_line(vec *utf32);
 static void handle_cmd(char *str, size_t n);
 static void handle_dir(char *str, size_t n);
 static void cleanup(void);
@@ -45,41 +46,32 @@ static void ansi_clear_line(void)
     printf("\033[K");
 }
 
-static void sigint_handler(int sign)
+static void update_all(void)
 {
-    cleanup();
-    sigaction(sign, &sigint_default, NULL);
-    kill(0, sign);
+    update_after(scroll_rows + 1);
 }
 
-static void draw_all(void)
-{
-    draw_after(scroll + 1);
-}
-
-static void draw_after(size_t ln)
+static void update_after(size_t ln)
 {
     size_t maxln, currln;
 
-    maxln = scroll + (size_t)rows;
+    maxln = scroll_rows + (size_t)rows;
 
-    if (scroll >= ln)
-        currln = scroll + 1;
+    if (scroll_rows >= ln)
+        currln = scroll_rows + 1;
     else
         currln = ln;
 
     for (; currln <= maxln; currln++)
-        draw_line(currln);
+        update_line(currln);
 }
 
-static void draw_line(size_t ln)
+static void update_line(size_t ln)
 {
-    vec    utf8, *chars;
-    size_t len;
     long   row;
     line  *l;
 
-    row = (long)ln - (long)scroll - 1;
+    row = (long)ln - (long)scroll_rows - 1;
 
     ansi_goto(0, (int)row);
     ansi_clear_line();
@@ -89,72 +81,56 @@ static void draw_line(size_t ln)
     l = text_get_line(&buffer, (size_t)ln);
     if (l == NULL) return;
 
-    chars = &(l->chars);
+    draw_line(&(l->chars));
+}
 
-    if ((size_t)cols < vec_len(chars))
+static void draw_line(vec *utf32)
+{
+    vec    utf8;
+    size_t len;
+
+    if (scroll_cols >= vec_len(utf32))
+        return;
+
+    len = vec_len(utf32) - scroll_cols;
+
+    if ((size_t)cols < len)
         len = (size_t)cols;
-    else
-        len = vec_len(chars);
 
     vec_init(&utf8, 1);
-    utf8_from_utf32(&utf8, vec_get(chars, 0), len);
+    utf8_from_utf32(&utf8, vec_get(utf32, scroll_cols), len);
 
     fwrite(vec_get(&utf8, 0), 1, vec_len(&utf8), stdout);
+    fflush(stdout);
+
+    vec_kill(&utf8);
 }
 
 static void handle_cmd(char *str, size_t n)
 {
     size_t ln;
-    vec *chrs;
-    line *l;
     text_cmd cmd;
 
-    text_cmd_decode(&cmd, str);
-
-    chrs = &(cmd.data.linecont);
+    cmd_decode(&cmd, str);
+    cmd_do_text(&buffer, &cmd);
     ln   = cmd.lineno;
 
     switch (cmd.type)
     {
     case cmd_set:
-        l = text_get_line(&buffer, ln);
-        if (l == NULL)
-        {
-            text_ins_line(&buffer, ln);
-            l = text_get_line(&buffer, ln);
-        }
-
-        line_set_chars(
-            l, vec_get(chrs, 0), vec_len(chrs)
-        );
-
-        draw_line(ln);
+        update_line(ln);
         break;
-
-    case cmd_ins:
-        text_ins_line(&buffer, ln);
-        l = text_get_line(&buffer, ln);
-
-        line_set_chars(
-            l, vec_get(chrs, 0), vec_len(chrs)
-        );
-
-        draw_after(ln);
-        break;
-
     case cmd_del:
-        text_del_line(&buffer, ln);
-        draw_after(ln);
+    case cmd_ins:
+        update_after(ln);
         break;
-
     case cmd_clr:
-        text_clr(&buffer);
-        draw_all();
+        update_all();
         break;
     }
 
     ansi_goto(cur_col, cur_row);
-    text_cmd_kill(&cmd);
+    cmd_kill(&cmd);
 }
 
 static void handle_dir(char *str, size_t n)
@@ -162,7 +138,7 @@ static void handle_dir(char *str, size_t n)
     if (strncmp("RESIZE", str, strlen("RESIZE")) == 0)
     {
         sscanf(str, "RESIZE %d %d", &cols, &rows);
-        draw_all();
+        update_all();
     }
     else if (strncmp("CURSOR", str, strlen("CURSOR")) == 0)
     {
@@ -171,8 +147,8 @@ static void handle_dir(char *str, size_t n)
     }
     else if (strncmp("SCROLL", str, strlen("SCROLL")) == 0)
     {
-        sscanf(str, "SCROLL %lu", &scroll);
-        draw_all();
+        sscanf(str, "SCROLL %lu %lu", &scroll_cols, &scroll_rows);
+        update_all();
     }
 }
 
@@ -185,24 +161,16 @@ static void cleanup(void)
 
 int main(void)
 {
-    struct sigaction act;
     inp_conf cmd_input = {"cmd", -1, NULL, handle_cmd};
     inp_conf dir_input = {"dir", -1, NULL, handle_dir};
 
-    atexit(cleanup);
+    on_clean(cleanup);
 
     text_init(&buffer);
 
-    draw_all();
-
-    sigemptyset(&act.sa_mask);
-    act.sa_flags = 0;
-    act.sa_handler = sigint_handler;
-
-    sigaction(SIGINT, &act, &sigint_default);
+    update_all();
 
     com_init();
-
     com_add_input(&cmd_input);
     com_add_input(&dir_input);
 
